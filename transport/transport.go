@@ -7,7 +7,7 @@ import (
 )
 
 type lastDuration struct {
-	time  time.Duration
+	time  int
 	count int
 }
 
@@ -25,7 +25,7 @@ func (c CustomRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	if !searchExceptions(c.exception, r.URL.String()) {
 		return c.original.RoundTrip(r)
 	}
-	if checkDuration(c.accounting, c.limit) {
+	if checkDuration(int(c.accounting.Minutes()), c.limit) {
 		return c.original.RoundTrip(r)
 	} else if !c.returnFlag {
 		return c.RoundTrip(r)
@@ -33,16 +33,16 @@ func (c CustomRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func checkDuration(t time.Duration, limit int) bool {
+func checkDuration(t int, limit int) bool {
 	if t == 0 {
 		return true
 	}
 	if ld.time == 0 {
-		ld.time = t
+		ld.time = time.Now().Minute() + t
 		return true
 	}
-	if t-ld.time <= 0 {
-		ld.time = t
+	if t+time.Now().Minute()-ld.time <= 0 {
+		ld.time = time.Now().Minute() + t
 		ld.count = 0
 		return true
 	}
