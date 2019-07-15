@@ -1,0 +1,71 @@
+package transport
+
+import (
+	"net/http"
+	"strings"
+	"time"
+)
+
+type lastDuration struct {
+	time  time.Duration
+	count int
+}
+
+var ld lastDuration
+
+type CustomRoundTripper struct {
+	original   http.RoundTripper
+	limit      int
+	accounting time.Duration
+	exception  []string
+	returnFlag bool
+}
+
+func (c CustomRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	if !searchExceptions(c.exception, r.URL.String()) {
+		return c.original.RoundTrip(r)
+	}
+	if checkDuration(c.accounting, c.limit) {
+		return c.original.RoundTrip(r)
+	} else if !c.returnFlag {
+		return c.RoundTrip(r)
+	}
+	return nil, nil
+}
+
+func checkDuration(t time.Duration, limit int) bool {
+	if t-ld.time <= 0 {
+		ld.time = t
+		ld.count = 0
+	}
+	if ld.count < limit {
+		ld.count++
+		return true
+	}
+	return false
+}
+
+func searchExceptions(exception []string, url string) bool {
+	for _, v := range exception {
+		if strings.Contains(v, "*") {
+			index := strings.Index(v, "*")
+			if strings.HasPrefix(url, v[0:index-1]) && strings.HasSuffix(url, v[index+1:]) {
+				return true
+			}
+		}
+		if v == url {
+			return true
+		}
+	}
+	return false
+}
+
+func NewThrottler(transport http.RoundTripper, limit int, dur time.Duration, exception []string, rf bool) CustomRoundTripper {
+	return CustomRoundTripper{
+		original:   transport,
+		limit:      limit,
+		accounting: dur,
+		exception:  exception,
+		returnFlag: rf,
+	}
+}
