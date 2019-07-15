@@ -34,9 +34,14 @@ func (c CustomRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func checkDuration(t time.Duration, limit int) bool {
+	if ld.time == 0 {
+		ld.time = t
+		return true
+	}
 	if t-ld.time <= 0 {
 		ld.time = t
 		ld.count = 0
+		return true
 	}
 	if ld.count < limit {
 		ld.count++
